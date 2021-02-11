@@ -1,0 +1,236 @@
+
+
+Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sub CreateAccountManual(rowNum)
+Dim driver1 As New ChromeDriver
+
+
+'Make it headless
+If Cells(2, "H").Value = "yes" Then driver1.AddArgument ("--headless")
+
+
+
+'Open email generator
+driver1.Get ("https://generator.email/")
+
+'Get new email address and save it to the Excel sheet
+Sleep (200)
+
+
+emailVal = driver1.FindElementByXPath("//*[@id='email_ch_text']").Text
+Sleep (200)
+Cells(rowNum, "A").Value = emailVal
+
+Debug.Print ("Creating Account: " + emailVal)
+
+'Get new password and save it to the Excel sheet
+password = RandomString(8)
+Cells(rowNum, "B").Value = password
+
+
+username = Split(Split(emailVal, "@")(0), ".")(0)
+'Generate a random piece of text to add to username
+username = username + RandomString(4)
+
+Cells(rowNum, "C").Value = username
+
+
+'Start second window to register
+Dim driver2 As New ChromeDriver
+If Cells(2, "H").Value = "yes" Then driver2.AddArgument ("--headless")
+driver2.Get ("https://portal.neondistrict.io/")
+Sleep (1000)
+
+driver2.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[2]/div/div[5]/button").Click
+Sleep (1000)
+
+
+
+driver2.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[1]/div/input").Click
+Sleep (200)
+driver2.SendKeys (username)
+Sleep (200)
+driver2.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[2]/div/input").Click
+Sleep (200)
+driver2.SendKeys (emailVal)
+Sleep (200)
+
+
+
+driver2.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[3]/div/input").Click
+Sleep (200)
+driver2.SendKeys (password)
+Sleep (200)
+
+
+driver2.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[4]/div/input").Click
+Sleep (200)
+driver2.SendKeys (password)
+Sleep (200)
+
+
+'Agree to terms
+driver2.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[5]/div/label").Click
+Sleep (200)
+
+
+'THIS IS WHERE THE USER MUST MANUALLY COMPLETE THE CAPTCHA
+'Sleep (60000)
+
+Sleep (1000)
+
+driver2.Quit
+
+'Click verify on email site
+verifyLink = driver1.FindElementByXPath("//*[@id='bodyTable']/tbody/tr[2]/td/center/table/tbody/tr/td/a").Attribute("href")
+Sleep (200)
+driver1.Quit
+
+
+
+'Switch to correct tab
+Dim driver3 As New ChromeDriver
+If Cells(2, "H").Value = "yes" Then driver3.AddArgument ("--headless")
+driver3.Get (verifyLink)
+Sleep (500)
+
+'click verify on neon district
+driver3.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div[5]/form/button").Click
+Sleep (500)
+
+driver3.Quit
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sub CreateAccountsManualMain()
+
+Retry:
+On Error GoTo FixError
+
+'Apparnetly this helps with memory
+'Application.ScreenUpdating = False
+'Change this to equal the number of your accounts
+numAccountsToMake = 100
+
+
+
+Debug.Print ("starting account creation")
+    
+currentRow = Cells(2, "I").Value
+For n = currentRow To (numAccountsToMake + 1)
+    ActiveWorkbook.Save
+    Cells(2, "I").Value = n + 1
+    CreateAccountManual n
+    'Sleep (100)
+        
+    'Wait .5 seconds between each account
+    Sleep (500)
+Next n
+  
+  
+'If we reach this point we're done. Everything after is error handling that shouldn't be accessed by the main program
+Exit Sub
+ 
+
+
+
+FixError:
+Debug.Print ("Error!")
+Debug.Print (Err.Description)
+'Mark the account row with a failure mark so that we don't use it in the future
+Cells((Cells(2, "I").Value - 1), "C").Value = "Fail!"
+Err.Clear
+Resume Retry
+
+
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'**This function was taken straight from a website (linked below)**
+Function RandomString(Length As Integer)
+'PURPOSE: Create a Randomized String of Characters
+'SOURCE: www.TheSpreadsheetGuru.com/the-code-vault
+
+
+Dim CharacterBank As Variant
+Dim x As Long
+Dim str As String
+
+'Test Length Input
+  If Length < 1 Then
+    MsgBox "Length variable must be greater than 0"
+    Exit Function
+  End If
+
+'Modified from orignal site to fit needs
+CharacterBank = Array("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", _
+  "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", _
+  "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", _
+  "A", "B", "C", "D", "E", "F", "G", "H", _
+  "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", _
+  "W", "X", "Y", "Z")
+  
+
+'Randomly Select Characters One-by-One
+  For x = 1 To Length
+    Randomize
+    str = str & CharacterBank(Int((UBound(CharacterBank) - LBound(CharacterBank) + 1) * Rnd + LBound(CharacterBank)))
+  Next x
+
+'Output Randomly Generated String
+  RandomString = str
+
+End Function
+
+
+
+
+
+

@@ -1,0 +1,363 @@
+
+
+Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+
+
+
+
+Public Sub RunAccount(rowNum)
+
+'=======================    Login and Go to Delievery    =======================
+Dim driver As New ChromeDriver
+
+
+
+'Make it headless
+If Cells(2, "H").Value = "yes" Then driver.AddArgument ("--headless")
+
+
+driver.Get ("https://portal.neondistrict.io/")
+Debug.Print ("Account in row " + CStr(rowNum) + ": " + Cells(rowNum, "A").Value)
+'Click "Log In"
+driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[1]/div/div[5]/button").Click
+Sleep (500)
+
+
+
+'Send Email
+driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[1]/div/input").SendKeys (Cells(rowNum, "A").Value)
+Sleep (2000)
+
+'Send Password
+driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[2]/div/input").SendKeys (Cells(rowNum, "B").Value)
+Sleep (500)
+
+'Click "Login"
+driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/button").Click
+Sleep (1000)
+
+'Go to "Neon Piazza/Delivery Agents"
+
+driver.FindElementByXPath("//*[@id='root']/div[1]/div/div[1]/div[3]").Click
+Sleep (250)
+driver.FindElementByXPath("//*[@id='root']/div[1]/div/div[1]/div[4]/div/a[1]").Click
+Sleep (1000)
+
+
+
+'=======================    Select a Team if Needed    =======================
+fullText = LCase("a" + driver.FindElementByXPath("/html/body").Text)
+If InStr(fullText, "select a delivery team") > 0 Then
+    driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[2]/div/div[3]/div/button").Click
+    Sleep (1000)
+End If
+
+
+Set fullText = Nothing
+
+
+'=======================    Find Status    =======================
+
+statusText = driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[1]/div[1]/div[2]/div[2]").Text
+Sleep (500)
+
+
+Dim onDelivery As Boolean
+onDelivery = False
+If InStr("a" + LCase(statusText), "currently on delivery") > 0 Then
+    onDelivery = True
+End If
+
+Dim shiftDone As Boolean
+shiftDone = False
+If InStr("a" + LCase(statusText), "shift is complete") > 0 Then
+    shiftDone = True
+End If
+Sleep (500)
+
+'=======================    Try and Collect Bank Pay    =======================
+'(This should only run if you are currently on delievery, or have finished)
+
+If onDelivery = True Or shiftDone = True Then
+
+    Dim haveAny As Boolean
+    haveAny = False
+
+    'Get Neon value
+    neon = driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[3]/div/div[1]").Text
+    Sleep (500)
+    neon = Split(neon, " ")(0)
+    If neon <> "0" Then
+        haveAny = True
+        Debug.Print ("neon not 0")
+    End If
+    Set neon = Nothing
+
+    'Get Juice Value
+    juice = driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[3]/div/div[2]").Text
+    Sleep (500)
+    juice = Split(juice, " ")(0)
+    If juice <> "0" Then
+        haveAny = True
+        Debug.Print ("juice not 0")
+    End If
+    Set juice = Nothing
+    
+    
+    'Get Parts Value
+    parts = driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[3]/div/div[3]").Text
+    Sleep (500)
+    parts = Split(parts, " ")(0)
+    If parts <> "0" Then
+        haveAny = True
+        Debug.Print ("parts not 0")
+    End If
+    Set parts = Nothing
+    
+    
+    'Click "Bank Pay" if there is anything to collect
+    If haveAny = True Then
+        driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[3]/div/button").Click
+    End If
+End If
+Sleep (1000)
+
+
+'=======================    Try and Start New Shift    =======================
+'(This should only run if you are currently not on delievery. Note that this applies if you just finished a shift)
+If onDelivery = False Then
+    Debug.Print ("Starting new shift!")
+    Sleep (500)
+    driver.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[3]/div/button").Click
+    
+    
+End If
+Sleep (500)
+'Note that there's no point in trying to collect bank pay at this point since we just started
+
+'=======================    Update NEON Amount    =======================
+
+Cells(rowNum, "D").Value = driver.FindElementByXPath("//*[@id='root']/div[1]/div/div[2]/div/div").Text
+Sleep (500)
+
+
+driver.Quit
+Set driver = Nothing
+Set statusText = Nothing
+ActiveWorkbook.Save
+
+End Sub
+
+
+
+
+
+
+
+
+
+Sub RunAccountsMain()
+
+Retry:
+On Error GoTo FixError
+
+'Apparnetly this helps with memory
+'Application.ScreenUpdating = False
+'Change this to equal the number of your accounts
+numAccounts = Cells(Rows.Count, 1).End(xlUp).Row
+
+
+
+'Removing Infinite Loop for now
+'Do
+
+Debug.Print ("starting")
+currentRow = Cells(2, "I").Value
+For n = currentRow To numAccounts
+    Cells(2, "I").Value = n + 1
+    RunAccount n
+    'Sleep (100)
+    
+    'Wait 10 seconds between each account
+    Sleep (10000)
+Next n
+
+Cells(2, "I").Value = 2
+    
+    
+'Removing Infnite Loop for now
+'Loop
+
+'We shouldn't get here unless we're done
+Exit Sub
+
+
+'Only get here for error
+FixError:
+Debug.Print ("Error!")
+Debug.Print (Err.Description)
+Err.Clear
+Resume Retry
+
+
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Public Sub SetupAccount(rowNum)
+
+Dim driver4 As New ChromeDriver
+If Cells(2, "H").Value = "yes" Then driver4.AddArgument ("--headless")
+driver4.Get ("https://portal.neondistrict.io/")
+
+'Click "Log In"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[1]/div/div[5]/button").Click
+Sleep (200)
+
+'Send Username
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[1]/div/input").SendKeys (Cells(rowNum, "A").Value)
+Sleep (200)
+
+'Send Password
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/div[2]/div/input").SendKeys (Cells(rowNum, "B").Value)
+Sleep (200)
+
+'Click "Login"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div/div/div[5]/form/button").Click
+Sleep (5000)
+
+'Click "Claim Free character"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[2]/div[1]/div/a").Click
+Sleep (1000)
+
+'Generate a random number between 0 and 5 (inclusive)
+selectNum = Int(6 * Rnd)
+
+
+'Choose a character based on the random number
+Select Case selectNum
+    Case 0
+        driver4.FindElementByXPath("//*[@id='root']/div[3]/div[3]/div[1]/div/div[1]/div/div[2]/h4").Click
+    Case 1
+        driver4.FindElementByXPath("//*[@id='root']/div[3]/div[3]/div[1]/div/div[2]/div/div[2]/h4").Click
+    Case 2
+        driver4.FindElementByXPath("//*[@id='root']/div[3]/div[3]/div[1]/div/div[3]/div/div[2]/h4").Click
+    Case 3
+        driver4.FindElementByXPath("//*[@id='root']/div[3]/div[3]/div[1]/div/div[4]/div/div[2]/h4").Click
+    Case 4
+        driver4.FindElementByXPath("//*[@id='root']/div[3]/div[3]/div[1]/div/div[5]/div/div[2]/h4").Click
+    Case Else
+        driver4.FindElementByXPath("//*[@id='root']/div[3]/div[3]/div[1]/div/div[6]/div/div[2]/h4").Click
+    
+End Select
+Sleep (1000)
+
+'Comfirm character
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div[2]/div[3]/div[2]/div/button").Click
+Sleep (1000)
+
+
+'Back to dashboard
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div[2]/div[3]/div[2]/div/a").Click
+Sleep (1000)
+
+'click on "Battle"
+driver4.FindElementByXPath("//*[@id='root']/div[1]/div/div[1]/div[1]").Click
+Sleep (1000)
+
+'click on "Team Setup"
+driver4.FindElementByXPath("//*[@id='root']/div[1]/div/div[1]/div[2]/div/a[1]/div").Click
+Sleep (1000)
+
+'Click on "Create new Team"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div/div[2]/div/div[1]/div").Click
+Sleep (1000)
+
+'Click on team name and name team
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div/div[2]/div/div[1]/div[2]/input").Click
+Sleep (1000)
+username = Split(Split(Cells(rowNum, "A"), "@")(0), ".")(0)
+driver4.SendKeys (CStr(username))
+Sleep (1000)
+
+
+
+'Click on "add"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div/div[2]/div/div[3]/div/button[1]").Click
+Sleep (500)
+
+'Click on character
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[3]/div[1]/div/div[2]/div[3]/div/div[2]").Click
+Sleep (500)
+
+'Click on "Slot 1"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[3]/div[2]/div/div[2]/div/button[1]").Click
+Sleep (500)
+
+'Click on "Save"
+driver4.FindElementByXPath("//*[@id='root']/div[3]/div/div[1]/div[2]/div/div[1]/button[2]").Click
+Sleep (500)
+
+driver4.Quit
+
+ActiveWorkbook.Save
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sub setupAccountsMain()
+
+numAccounts = Cells(Rows.Count, 1).End(xlUp).Row
+
+
+
+'Removing Infinite Loop for now
+'Do
+
+Debug.Print ("starting account setup")
+currentRow = Cells(2, "I").Value
+For n = currentRow To numAccounts
+    Cells(2, "I").Value = n + 1
+    SetupAccount n
+    'Sleep (100)
+    
+    'Wait 2 seconds between each account
+    Sleep (2000)
+Next n
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
